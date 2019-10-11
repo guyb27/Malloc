@@ -6,7 +6,7 @@
 /*   By: gmadec <marvin@le-101.fr>                  +:+   +:    +:    +:+     */
 /*                                                 #+#   #+    #+    #+#      */
 /*   Created: 2019/09/18 20:29:04 by gmadec       #+#   ##    ##    #+#       */
-/*   Updated: 2019/10/06 08:12:02 by gmadec      ###    #+. /#+    ###.fr     */
+/*   Updated: 2019/10/11 04:52:51 by gmadec      ###    #+. /#+    ###.fr     */
 /*                                                         /                  */
 /*                                                        /                   */
 /* ************************************************************************** */
@@ -294,7 +294,6 @@ void	*ft_malloc(size_t size)
 	void					*ret;
 
 	int i = 0;
-
 	g_attrib_mem = 0;
 	g_next = 0;
 	g_new_alloc = 0;
@@ -318,13 +317,12 @@ void	*ft_malloc(size_t size)
 	else if (size > 0)
 		ret = new_large(size);
 	block = g_areas.tiny;
-	printf("NB_MAILLON:[%d], ATTRIB_MEM:[%d], NEXT:[%d], NEW_ALLOC:[%d], TOTAL_USE:[%zi]\n", i, g_attrib_mem, g_next,g_new_alloc, g_areas.total_use);
 	return (ret);
 }
 
-int		free_large(void *ptr, t_block *large)
+int		free_large(t_block *large)
 {
-	g_areas.total_use -= next_hexa_base(sizeof(large)) + large->octets_used;
+	g_areas.total_use -= large->octets_used;
 	if (large->next)
 		large->next->prev = large->prev;
 	if (large->prev)
@@ -339,10 +337,35 @@ int		free_large(void *ptr, t_block *large)
 		next_hexa_base(sizeof(t_block))));
 }
 
-void	free_tiny_and_small(void *ptr, t_block *block)
+void	free_double_zone(t_block *block, size_t size)//0EN COURS !!! !!! !!!
 {
-	g_areas.total_use -= block->octets_used + block->octets_available;
-	printf("TOTAL_USE: [%zi]\n", g_areas.total_use);
+	int	found = 0;
+
+	size_t zone_size
+	zone_size = (size * 100) + (next_hexa_base(sizeof(t_block)) * 100);
+	if (zone_size % g_areas.page_size)
+		zone_size += g_areas.page_size - (size % g_areas.page_size);
+	while (block)
+	{
+		if (block->octets_available == zone_size)
+		{
+			if (found > 0)
+			{
+//				if (block->prev)
+					block->prev->next = block->next;
+				if (block->next)
+					block->next->prev = block->prev;
+			}
+			else
+				found++;
+		}
+		block = block->next;
+	}
+}// 1EN COURS !!! !!! !!!
+
+void	free_tiny_and_small(t_block *block, size_t size)
+{
+	g_areas.total_use -= block->octets_used;
 	if (block->prev && block->prev->start_address + block->octets_used ==
 		(size_t)block && block->next->octets_available)
 	{
@@ -354,22 +377,22 @@ void	free_tiny_and_small(void *ptr, t_block *block)
 		block = block->prev;
 	}
 	if (block->next && block->start_address + block->octets_used +
-	block->octets_available == (size_t)block->next && block->octets_available)
+	block->octets_available == (size_t)block->next)
 	{
 		block->octets_available = block->octets_available + block->octets_used;
 		block->octets_available += block->next->octets_available +
 			next_hexa_base(sizeof(t_block));
 		block->next = block->next->next;
-		if (block->next->next)
+		if (block->next && block->next->next)
 			block->next->next->prev = block;
 	}
 	block->octets_used = 0;
+	free_double_zone(size <= TINY_MAX ? g_areas.tiny : g_areas.small,
+		size <= TINY_MAX ? TINY_MAX : SMALL_MAX);
 }
 
 /*
- *
- *[1]TOTAL A CHANGER
- *[2]free tout les maillons, meme quand on ne defragmente pas
+ *[0]REGARDER SI IL N Y A PAS DE ZONE MMAP FREE EN DOUBLON APRES UN FREE
 */
 t_block	*free_search(void *ptr, t_block *block)
 {
@@ -383,7 +406,7 @@ t_block	*free_search(void *ptr, t_block *block)
 	return (NULL);
 }
 
-int		ft_free(void *ptr)
+void		ft_free(void *ptr)
 {
 	int found = 0;
 	t_block		*block;
@@ -392,23 +415,26 @@ int		ft_free(void *ptr)
 	{
 		if ((block = free_search(ptr, g_areas.tiny)) ||
 			(block = free_search(ptr, g_areas.small)))
-			free_tiny_and_small(ptr, block);
+			free_tiny_and_small(block, block->octets_used);
 		else if ((block = free_search(ptr, g_areas.large)))
-			return(free_large(ptr, block));
+			free_large(block);
 	}
-	return (0);
 }
 
 int		main(int ac, char **av)
 {
 	int i = 0, j = 0;
 
-	while(i < 300)
+	while(i < 12)
 	{
 		ft_free(ft_malloc(atoi(av[1])));
+		//ft_malloc(atoi(av[1]));
 		g_i++;
 		ft_free(ft_malloc(atoi(av[2])));
 		//ft_malloc(atoi(av[2]));
+		g_i++;
+		//ft_free(ft_malloc(atoi(av[3])));
+		ft_malloc(atoi(av[3]));
 		i++;
 		g_i++;
 	}
