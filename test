@@ -1,3 +1,0 @@
-gcc -fPIC -g3 -c malloc.c;gcc malloc.o -shared -o libft_malloc_darwin.so;rm libft_malloc.so;ln -s libft_malloc_darwin.so libft_malloc.so;./run.sh zsh
-gcc  malloc.c
-./a.out 22223333333 222233333334
