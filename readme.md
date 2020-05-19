@@ -1,2 +1,2 @@
 make  
-./run.sh <binaire>
+./run.sh binaire
